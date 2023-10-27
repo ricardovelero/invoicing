@@ -59,3 +59,11 @@ export async function updateInvoice(formData: FormData) {
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
 }
+
+const DeleteInvoice = InvoiceSchema.pick({ id: true });
+
+export async function deleteInvoice(formData: FormData) {
+  const id = formData.get('id')?.toString();
+  await sql`DELETE FROM invoices WHERE id = ${id}`;
+  revalidatePath('/dashboard/invoices');
+}
