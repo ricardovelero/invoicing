@@ -1,3 +1,6 @@
+'use client';
+
+import { authenticate } from '@/app/lib/actions';
 import { lusitana } from '@/app/ui/fonts';
 import {
   AtSymbolIcon,
@@ -6,14 +9,13 @@ import {
 } from '@heroicons/react/24/outline';
 import { ArrowRightIcon } from '@heroicons/react/20/solid';
 import { Button } from './button';
-import { authenticate } from '@/app/lib/actions';
 import { useFormState, useFormStatus } from 'react-dom';
 
 export default function LoginForm() {
   const [code, action] = useFormState(authenticate, undefined);
   const { pending } = useFormStatus();
   return (
-    <form className='space-y-3' action={action}>
+    <form action={action} className='space-y-3'>
       <div className='flex-1 rounded-lg bg-gray-50 px-6 pb-4 pt-8'>
         <h1 className={`${lusitana.className} mb-3 text-2xl`}>
           Please log in to continue.
@@ -61,7 +63,7 @@ export default function LoginForm() {
         </div>
         <LoginButton />
         <div className='flex h-8 items-end space-x-1'>
-          {code === 'CredentialSignin' && (
+          {code === 'CredentialsSignin' && (
             <>
               <ExclamationCircleIcon className='h-5 w-5 text-red-500' />
               <p aria-live='polite' className='text-sm text-red-500'>
