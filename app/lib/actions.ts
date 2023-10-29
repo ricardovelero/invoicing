@@ -6,16 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { signIn } from '@/auth';
 
-export type State = {
-  errors?: {
-    customerId?: string[];
-    amount?: string[];
-    status?: string[];
-  };
-  message?: string | null;
-};
-
-const InvoiceSchema = z.object({
+const FormSchema = z.object({
   id: z.string(),
   customerId: z.string({
     invalid_type_error: 'Please select a customer.',
@@ -29,16 +20,29 @@ const InvoiceSchema = z.object({
   date: z.string(),
 });
 
-// Use Zod to update the expected types
-const CreateInvoice = InvoiceSchema.omit({ id: true, date: true });
+const CreateInvoice = FormSchema.omit({ id: true, date: true });
+const UpdateInvoice = FormSchema.omit({ date: true });
+const DeleteInvoice = FormSchema.pick({ id: true });
+
+// This is temporary
+export type State = {
+  errors?: {
+    customerId?: string[];
+    amount?: string[];
+    status?: string[];
+  };
+  message?: string | null;
+};
 
 export async function createInvoice(prevState: State, formData: FormData) {
+  // Validate form fields using Zod
   const validatedFields = CreateInvoice.safeParse({
     customerId: formData.get('customerId'),
     amount: formData.get('amount'),
     status: formData.get('status'),
   });
 
+  // If form validation fails, return errors early. Otherwise, continue.
   if (!validatedFields.success) {
     return {
       errors: validatedFields.error.flatten().fieldErrors,
@@ -54,20 +58,21 @@ export async function createInvoice(prevState: State, formData: FormData) {
   // Insert data into the database
   try {
     await sql`
-    INSERT INTO invoices(customer_id, amount, status, date)
-    VALUES(${customerId}, ${amountInCents}, ${status}, ${date})
-  `;
+      INSERT INTO invoices (customer_id, amount, status, date)
+      VALUES (${customerId}, ${amountInCents}, ${status}, ${date})
+    `;
   } catch (error) {
-    console.log(error);
+    // If a database error occurs, return a more specific error.
     return {
       message: 'Database Error: Failed to Create Invoice.',
     };
   }
+
+  // Revalidate the cache for the invoices page and redirect the user.
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
 }
 
-const UpdateInvoice = InvoiceSchema.omit({ date: true });
 export async function updateInvoice(prevState: State, formData: FormData) {
   const validatedFields = UpdateInvoice.safeParse({
     id: formData.get('id'),
@@ -82,60 +87,50 @@ export async function updateInvoice(prevState: State, formData: FormData) {
       message: 'Missing Fields. Failed to Update Invoice.',
     };
   }
-  // Prepare data for insertion into the database
+
   const { id, customerId, amount, status } = validatedFields.data;
   const amountInCents = amount * 100;
 
   try {
     await sql`
-    UPDATE invoices
-    SET customer_id = ${customerId}, amount = ${amountInCents}, status = ${status}
-    WHERE id = ${id}
-  `;
+      UPDATE invoices
+      SET customer_id = ${customerId}, amount = ${amountInCents}, status = ${status}
+      WHERE id = ${id}
+    `;
   } catch (error) {
-    console.log(error);
-    return {
-      message: 'Database Error: Failed to Update Invoice.',
-    };
+    return { message: 'Database Error: Failed to Update Invoice.' };
   }
+
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
 }
 
-const DeleteInvoice = InvoiceSchema.pick({ id: true });
-
 export async function deleteInvoice(formData: FormData) {
-  const id = formData.get('id')?.toString();
+  // throw new Error('Failed to Delete Invoice');
+
+  const { id } = DeleteInvoice.parse({
+    id: formData.get('id'),
+  });
+
   try {
     await sql`DELETE FROM invoices WHERE id = ${id}`;
+    revalidatePath('/dashboard/invoices');
+    return { message: 'Deleted Invoice' };
   } catch (error) {
-    console.log(error);
-    return {
-      message: 'Database Error: Failed to Delete Invoice.',
-    };
+    return { message: 'Database Error: Failed to Delete Invoice.' };
   }
-
-  revalidatePath('/dashboard/invoices');
 }
 
 export async function authenticate(
   prevState: string | undefined,
   formData: FormData
 ) {
-  let responseRedirectUrl = null;
   try {
-    console.log('formData', formData);
-    responseRedirectUrl = await signIn('credentials', {
-      ...Object.fromEntries(formData),
-      redirect: false,
-    });
+    await signIn('credentials', Object.fromEntries(formData));
   } catch (error) {
-    console.log('error', error);
     if ((error as Error).message.includes('CredentialsSignin')) {
-      return 'CredentialSignin';
+      return 'CredentialsSignin';
     }
     throw error;
-  } finally {
-    if (responseRedirectUrl) redirect(responseRedirectUrl);
   }
 }
